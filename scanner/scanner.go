@@ -36,13 +36,13 @@ func (scn *Scanner) HandleFileSystemChange() {
 		//handle operation.
 		switch fsc.Op {
 		case watcher.Create:
-			scn.dbs.AddRecord(fsc.Path, fsc.FileInfo.Name(), fsc.Mode().String(), fsc.Size(), fsc.ModTime())
+			scn.dbs.AddRecord(&fsc)
 		case watcher.Write:
-			scn.dbs.UpdateRecord(fsc.Path, fsc.FileInfo.Name(), fsc.Mode().String(), fsc.Size(), fsc.ModTime())
+			scn.dbs.UpdateRecord(&fsc)
 		case watcher.Chmod:
-			scn.dbs.UpdateRecord(fsc.Path, fsc.FileInfo.Name(), fsc.Mode().String(), fsc.Size(), fsc.ModTime())
+			scn.dbs.UpdateRecord(&fsc)
 		case watcher.Remove:
-			scn.dbs.DeleteRecord(fsc.Path, fsc.FileInfo.Name(), fsc.Mode().String(), fsc.Size(), fsc.ModTime())
+			scn.dbs.DeleteRecord(&fsc)
 		case watcher.Move:
 		case watcher.Rename:
 		}

@@ -9,6 +9,8 @@ import (
 
 	"folderwatch/config"
 	"folderwatch/types"
+
+	"github.com/radovskyb/watcher"
 )
 
 type LogFile struct {
@@ -52,17 +54,46 @@ func (lf *LogFile) openNew() bool {
 	return true
 }
 
-func (lf *LogFile) LogEvent(fc types.FChange, fullPath string, fName string, md string, sz int64, dt time.Time) {
+func (lf *LogFile) LogInitial(fullPath string, fName string, md string, sz int64, dt time.Time) {
+
+	fmt.Println("Adding initial record for", fullPath)
+
+	lf.mtx.Lock()
+	defer lf.mtx.Unlock()
+
+	lf.openNew()
+
+	if lf.file == nil {
+		return
+	}
+	ch := types.FileChangeLog{
+		ChangeType:  "Initial",
+		FilePath:    fullPath,
+		Mode:        md,
+		Size:        sz,
+		LastUpdated: dt,
+	}
+	bytes, err := json.MarshalIndent(ch, " ", "\t")
+	if err != nil {
+		strerr := fmt.Sprintln("error marshaling FileChangeLog object", err.Error())
+		lf.file.Write([]byte(strerr))
+	} else {
+		lf.file.Write(bytes)
+		lf.file.Write([]byte("\r\n"))
+	}
+}
+
+func (lf *LogFile) LogEvent(fc types.FChange, ev *watcher.Event) {
 
 	switch fc {
 	case types.Initial:
-		fmt.Println("Adding initial record for", fullPath)
+		fmt.Println("Adding initial record for", ev.Path)
 	case types.Add:
-		fmt.Println("Recording an 'Add' event for", fullPath)
+		fmt.Println("Recording an 'Add' event for", ev.Path)
 	case types.Update:
-		fmt.Println("Recording an 'Update' event for", fullPath)
+		fmt.Println("Recording an 'Update' event for", ev.Path)
 	case types.Delete:
-		fmt.Println("Recording a 'Remove' event for", fullPath)
+		fmt.Println("Recording a 'Remove' event for", ev.Path)
 	}
 
 	lf.mtx.Lock()
@@ -75,10 +106,10 @@ func (lf *LogFile) LogEvent(fc types.FChange, fullPath string, fName string, md 
 	}
 	ch := types.FileChangeLog{
 		ChangeType:  fc.String(),
-		FilePath:    fullPath,
-		Mode:        md,
-		Size:        sz,
-		LastUpdated: dt,
+		FilePath:    ev.Path,
+		Mode:        ev.Mode().String(),
+		Size:        ev.Size(),
+		LastUpdated: ev.ModTime(),
 	}
 	bytes, err := json.MarshalIndent(ch, " ", "\t")
 	if err != nil {

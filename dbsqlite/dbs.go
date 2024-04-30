@@ -11,6 +11,7 @@ import (
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
+	"github.com/radovskyb/watcher"
 )
 
 type DatabaseHolder struct {
@@ -58,7 +59,7 @@ func (dh *DatabaseHolder) AddInitialRecord(fullPath string, fName string, md str
 	dh.mtx.Lock()
 	defer dh.mtx.Unlock()
 
-	dh.lf.LogEvent(types.Initial, fullPath, fName, md, sz, dt)
+	dh.lf.LogInitial(fullPath, fName, md, sz, dt)
 	stmt, err := dh.dbs.Prepare("INSERT INTO fsevents(file_path, file_name, mode, size) values(?, ?, ?, ?)")
 	if err != nil {
 		//TODO: log the error
@@ -69,51 +70,50 @@ func (dh *DatabaseHolder) AddInitialRecord(fullPath string, fName string, md str
 	return err
 }
 
-func (dh *DatabaseHolder) AddRecord(fullPath string, fName string, md string, sz int64, dt time.Time) error {
+func (dh *DatabaseHolder) AddRecord(ev *watcher.Event) error {
 	dh.mtx.Lock()
 	defer dh.mtx.Unlock()
 
-	dh.lf.LogEvent(types.Add, fullPath, fName, md, sz, dt)
+	dh.lf.LogEvent(types.Add, ev)
 	stmt, err := dh.dbs.Prepare("INSERT INTO fsevents(file_path, file_name, mode, size) values(?, ?, ?, ?)")
 	if err != nil {
 		//TODO: log the error
 		dh.lf.LogError("error preparing the add record statement:", err)
 		return errors.New("error preparing the add record statement")
 	}
-	_, err = stmt.Exec(fullPath, fName, md, sz)
+	_, err = stmt.Exec(ev.Path, ev.Name(), ev.Mode().String(), ev.Size())
 	if err != nil {
-		dh.lf.LogError("error adding the record for "+fullPath, err)
+		dh.lf.LogError("error adding the record for "+ev.Path, err)
 	}
 	return err
 }
 
-func (dh *DatabaseHolder) UpdateRecord(fullPath string, fName string, md string, sz int64, dt time.Time) error {
+func (dh *DatabaseHolder) UpdateRecord(ev *watcher.Event) error {
 	dh.mtx.Lock()
 	defer dh.mtx.Unlock()
 
-	dh.lf.LogEvent(types.Update, fullPath, fName, md, sz, dt)
+	dh.lf.LogEvent(types.Update, ev)
 	stmt, err := dh.dbs.Prepare("UPDATE fsevents SET mode = ?, size = ? WHERE file_path = ?")
 	if err != nil {
 		//TODO: log the error
 		dh.lf.LogError("error preparing the add record statement", err)
 		return errors.New("error preparing the update record statement")
 	}
-	_, err = stmt.Exec(md, sz, fullPath)
+	_, err = stmt.Exec(ev.Mode().String(), ev.Size(), ev.Path)
 	if err != nil {
-		dh.lf.LogInfo("error updating the record for "+fullPath+" trying add", err)
-		return dh.AddRecord(fullPath, fName, md, sz, dt)
+		dh.lf.LogInfo("error updating the record for "+ev.Path+" trying add", err)
+		return dh.AddRecord(ev)
 	}
 	return nil
 }
-func (dh *DatabaseHolder) DeleteRecord(fullPath string, fName string, md string, sz int64, dt time.Time) error {
+func (dh *DatabaseHolder) DeleteRecord(ev *watcher.Event) error {
 	dh.mtx.Lock()
 	defer dh.mtx.Unlock()
 
-	dh.lf.LogEvent(types.Delete, fullPath, fName, md, sz, dt)
-	_, err := dh.dbs.Exec("DELETE from fsevents WHERE file_path = ?", fullPath)
+	dh.lf.LogEvent(types.Delete, ev)
+	_, err := dh.dbs.Exec("DELETE from fsevents WHERE file_path = ?", ev.Path)
 	if err != nil {
-		dh.lf.LogInfo("error deleting the record for "+fullPath, err)
-		return dh.AddRecord(fullPath, fName, md, sz, dt)
+		dh.lf.LogInfo("error deleting the record for "+ev.Path, err)
 	}
 	return nil
 }

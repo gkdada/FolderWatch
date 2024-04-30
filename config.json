@@ -1,0 +1,7 @@
+{
+    "TargetDir": "/tmp/tst",
+    "DatabaseLocation": "/tmp/tstdb/test.db",
+    "NumThreads": 6,
+    "LogfilePath": "/tmp/tstlog",
+    "NewLogFileHours": 2
+}
